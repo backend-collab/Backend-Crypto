@@ -1,9 +1,10 @@
-ccxt==4.4.98
-flask==3.1.1
-matplotlib
-mplfinance==0.12.10b0
-numpy==1.22.4
-pandas==2.3.1
-pandas-ta==0.3.14b0
-requests==2.32.4
-gunicorn
+flask==2.0.1
+ccxt==1.93.95  # Versi yang lebih stabil untuk compatibility
+pandas==1.5.3  # Versi yang kompatibel dengan numpy dan pandas_ta
+pandas-ta==0.3.14b  
+numpy==1.23.5  # Versi yang stabil untuk menghindari NaN issues
+mplfinance==0.12.7a17
+python-dotenv==0.19.0
+gunicorn==20.1.0
+requests==2.26.0
+matplotlib==3.5.3  # Versi yang kompatibel dengan mplfinance
