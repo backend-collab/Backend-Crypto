@@ -419,17 +419,25 @@ def get_realtime_volume_analysis(symbol, timeframe='1m'):
 # Tambahkan decorator ke route yang perlu CORS
 @app.route('/api/analyze', methods=['GET'])
 @add_cors_headers
+@rate_limit_decorator
 def analyze_crypto():
     # ... kode yang sudah ada ...
     symbol = request.args.get('symbol')
     timeframe = request.args.get('timeframe', '1d')
 
-    if not symbol:
-        return jsonify({"error": "Parameter 'symbol' tidak ditemukan."}), 400
-    if timeframe not in VALID_TIMEFRAMES:
-        return jsonify({"error": f"Timeframe tidak valid."}), 400
+    try:
+        # Validasi input
+        validated_symbol = validate_symbol(symbol)
+        if timeframe not in VALID_TIMEFRAMES:
+            raise ValueError(f"Timeframe tidak valid. Harus salah satu dari: {', '.join(VALID_TIMEFRAMES)}")
 
-    validated_symbol = validate_symbol(symbol)
+        # Initialize exchange dengan error handling
+        exchange = initialize_exchange()
+        
+        # Fetch data dengan retry logic
+        ohlcv = fetch_ohlcv_safe(exchange, validated_symbol, timeframe, 250)
+        if not ohlcv:
+            raise ValueError("Tidak dapat mengambil data dari exchange")
 
     try:
         exchange = ccxt.binanceus() # <-- DIGANTI
@@ -611,9 +619,11 @@ def analyze_crypto():
 
         return jsonify(result)
 
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
-        return jsonify({"error": f"Terjadi kesalahan fatal: {str(e)}"}), 500
-
+        logger.error(f"Error in analyze_crypto: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/chart/<path:symbol>/<timeframe>')
 @app.route('/api/chart/<symbol>/<timeframe>')
