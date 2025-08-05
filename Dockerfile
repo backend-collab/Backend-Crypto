@@ -1,21 +1,11 @@
-# Gunakan base image Python resmi
 FROM python:3.9-slim
 
-# Set direktori kerja di dalam container
-WORKDIR /app
+WORKDIR /code
 
-# Salin file requirements dan install dependensi
-COPY requirements.txt .
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir --upgrade -r requirements.txt
+COPY ./requirements.txt /code/requirements.txt
 
-# Salin semua file aplikasi ke dalam container
-COPY . .
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
-# Expose port yang akan digunakan oleh aplikasi
-# Port ini harus sama dengan app_port di README.md
-EXPOSE 7860
+COPY . /code/
 
-# Perintah untuk menjalankan aplikasi menggunakan Gunicorn
-# Ganti "app:app" jika nama file atau variabel Flask Anda berbeda
-CMD ["gunicorn", "--bind", "0.0.0.0:7860", "--workers", "4", "app:app"]
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:7860", "--workers", "1", "--timeout", "180"]
