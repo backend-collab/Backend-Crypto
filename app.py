@@ -15,7 +15,11 @@ import logging
 import matplotlib
 from cors_handler import add_cors_headers
 
-matplotlib.use('Agg')  # Use non-interactive backend for headless environment
+# Di bagian atas app.py, setelah import
+if os.environ.get('HF_SPACE'):
+    # Konfigurasi khusus untuk HF Space
+    matplotlib.use('Agg')
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
