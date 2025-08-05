@@ -14,6 +14,8 @@ import io
 import logging
 import matplotlib
 from cors_handler import add_cors_headers
+from functools import wraps
+from collections import OrderedDict
 
 # Di bagian atas app.py, setelah import
 if os.environ.get('HF_SPACE'):
@@ -31,6 +33,95 @@ app = Flask(__name__)
 cache_data = {}
 alert_history = []
 
+def initialize_exchange():
+    try:
+        exchange = ccxt.binanceus()
+        # Test connection
+        exchange.load_markets()
+        return exchange
+    except ccxt.NetworkError as e:
+        logger.error(f"Network error: {str(e)}")
+        raise Exception("Tidak dapat terhubung ke exchange. Silakan coba lagi.")
+    except ccxt.ExchangeError as e:
+        logger.error(f"Exchange error: {str(e)}")
+        raise Exception("Error pada exchange. Mohon periksa status exchange.")
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        raise Exception("Terjadi kesalahan yang tidak diharapkan.")
+
+def retry_on_error(max_retries=3, delay=1):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            retries = 0
+            while retries < max_retries:
+                try:
+                    return func(*args, **kwargs)
+                except (ccxt.NetworkError, ccxt.ExchangeNotAvailable) as e:
+                    retries += 1
+                    if retries == max_retries:
+                        raise
+                    logger.warning(f"Attempt {retries} failed. Retrying in {delay} seconds...")
+                    time.sleep(delay)
+            return None
+        return wrapper
+    return decorator
+
+@retry_on_error(max_retries=3)
+def fetch_ohlcv_safe(exchange, symbol, timeframe, limit):
+    """
+    Fetch OHLCV data dengan retry logic
+    """
+    return exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+
+
+class TimedCache(OrderedDict):
+    def __init__(self, max_age_seconds=300, max_size=100):
+        self.max_age = timedelta(seconds=max_age_seconds)
+        self.max_size = max_size
+        super().__init__()
+        
+    def __setitem__(self, key, value):
+        if len(self) >= self.max_size:
+            self.popitem(last=False)  # Remove oldest
+        super().__setitem__(key, (datetime.now(), value))
+        
+    def __getitem__(self, key):
+        timestamp, value = super().__getitem__(key)
+        if datetime.now() - timestamp > self.max_age:
+            del self[key]
+            raise KeyError
+        return value
+
+# Ganti cache global
+cache_data = TimedCache()
+
+class RateLimiter:
+    def __init__(self, max_requests=1200, per_seconds=60):
+        self.max_requests = max_requests
+        self.per_seconds = per_seconds
+        self.requests = []
+        
+    def can_make_request(self):
+        now = datetime.now()
+        # Remove old requests
+        self.requests = [req for req in self.requests 
+                        if req > now - timedelta(seconds=self.per_seconds)]
+        
+        if len(self.requests) < self.max_requests:
+            self.requests.append(now)
+            return True
+        return False
+
+rate_limiter = RateLimiter()
+
+def rate_limit_decorator(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not rate_limiter.can_make_request():
+            raise Exception("Rate limit exceeded. Please try again later.")
+        return func(*args, **kwargs)
+    return wrapper
 
 def generate_chart(df, symbol, timeframe):
     """
@@ -77,8 +168,33 @@ def generate_chart(df, symbol, timeframe):
 
 
 def validate_symbol(symbol_input):
-    return symbol_input.upper().replace('-', '/')
-
+    """
+    Validasi dan normalisasi simbol trading
+    """
+    try:
+        if not symbol_input:
+            raise ValueError("Symbol tidak boleh kosong")
+            
+        symbol = symbol_input.upper().replace('-', '/')
+        
+        # Daftar base currency yang valid di Binance US
+        valid_base_currencies = ['BTC', 'ETH', 'USDT', 'USD', 'BUSD']
+        
+        # Cek format symbol (e.g., BTC/USDT)
+        parts = symbol.split('/')
+        if len(parts) != 2:
+            raise ValueError("Format symbol tidak valid. Contoh: BTC/USDT")
+            
+        base, quote = parts
+        
+        # Validasi quote currency
+        if quote not in valid_base_currencies:
+            raise ValueError(f"Quote currency tidak valid. Harus salah satu dari: {', '.join(valid_base_currencies)}")
+            
+        return symbol
+    except Exception as e:
+        logger.error(f"Symbol validation error: {str(e)}")
+        raise ValueError(f"Symbol validation error: {str(e)}")
 
 VALID_TIMEFRAMES = [
     '1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d',
