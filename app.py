@@ -13,6 +13,7 @@ import mplfinance as mpf
 import io
 import logging
 import matplotlib
+from cors_handler import add_cors_headers
 
 matplotlib.use('Agg')  # Use non-interactive backend for headless environment
 
@@ -411,9 +412,11 @@ def get_realtime_volume_analysis(symbol, timeframe='1m'):
     except Exception as e:
         return {"error": f"Gagal mengambil analisis volume: {str(e)}"}
 
-
+# Tambahkan decorator ke route yang perlu CORS
 @app.route('/api/analyze', methods=['GET'])
+@add_cors_headers
 def analyze_crypto():
+    # ... kode yang sudah ada ...
     symbol = request.args.get('symbol')
     timeframe = request.args.get('timeframe', '1d')
 
