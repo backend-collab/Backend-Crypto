@@ -5,7 +5,7 @@ import pandas_ta as ta
 import os
 import requests
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import time
 import threading
 import json
@@ -32,6 +32,16 @@ app = Flask(__name__)
 # Global variables untuk caching dan real-time updates
 cache_data = {}
 alert_history = []
+current_user = 'backend-collab'  # Untuk tracking user
+
+def log_request(user, endpoint):
+    """Log request dengan user dan timestamp"""
+    utc_time = get_utc_time()
+    logger.info(f"Request at {utc_time} by {user} to {endpoint}")
+
+def get_utc_time():
+    """Get current UTC time in YYYY-MM-DD HH:MM:SS format"""
+    return datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
 def initialize_exchange():
     try:
@@ -531,6 +541,15 @@ def get_realtime_volume_analysis(symbol, timeframe='1m'):
             }
     except Exception as e:
         return {"error": f"Gagal mengambil analisis volume: {str(e)}"}
+
+@app.route('/api/status', methods=['GET'])
+def get_status():
+    return jsonify({
+        "status": "operational",
+        "timestamp": get_utc_time(),
+        "user": current_user,
+        "version": "1.0.0"
+    })
 
 # Tambahkan decorator ke route yang perlu CORS
 @app.route('/api/analyze', methods=['GET'])
