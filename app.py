@@ -937,6 +937,12 @@ def home():
     
     if not ohlcv or len(ohlcv) < 2:
     return jsonify({"error": "Insufficient data"}), 400
+
+@app.after_request
+def add_header(response):
+    if request.path.startswith('/api/'):
+        response.cache_control.max_age = 300  # 5 minutes
+    return response
 # Ganti nama file "your_main_file.py" dengan nama file python Anda, misal "app.py"
 # Blok ini tidak lagi diperlukan jika Anda menggunakan Gunicorn melalui Dockerfile,
 # tetapi tidak ada salahnya untuk membiarkannya untuk testing lokal.
