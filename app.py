@@ -1,4 +1,6 @@
 from flask import Flask, request, jsonify, send_file
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import ccxt
 import pandas as pd
 import pandas_ta as ta
@@ -17,6 +19,11 @@ from cors_handler import add_cors_headers
 from functools import wraps
 from collections import OrderedDict
 
+limiter = Limiter(
+    app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"]
+)
 # Di bagian atas app.py, setelah import
 if os.environ.get('HF_SPACE'):
     # Konfigurasi khusus untuk HF Space
@@ -888,10 +895,13 @@ def get_fibonacci_only(symbol):
             "period_high": period_high,
             "period_low": period_low
         })
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except ccxt.NetworkError as ne:
+        return jsonify({"error": "Network error"}), 503
     except Exception as e:
-        return jsonify({"error":
-                        f"Error calculating Fibonacci: {str(e)}"}), 500
-
+        logger.error(f"Unexpected error: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/')
 def home():
@@ -921,10 +931,15 @@ def home():
         <li><a href="/api/chart/BTC/USDT/1d">Test Chart BTC/USDT</a></li>
     </ul>
     """
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    return response            
+    
+    if not ohlcv or len(ohlcv) < 2:
+    return jsonify({"error": "Insufficient data"}), 400
 # Ganti nama file "your_main_file.py" dengan nama file python Anda, misal "app.py"
 # Blok ini tidak lagi diperlukan jika Anda menggunakan Gunicorn melalui Dockerfile,
 # tetapi tidak ada salahnya untuk membiarkannya untuk testing lokal.
 # Pastikan portnya berbeda dari yang digunakan Gunicorn untuk menghindari konflik.
-if __name__ == "__main__":
-    # Port untuk testing lokal saja
-    app.run(host='0.0.0.0', port=5000, debug=True)
+debug_mode = os.getenv('DEBUG', 'False').lower() == 'true'
+app.run(host='0.0.0.0', port=5000, debug=debug_mode)
