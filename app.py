@@ -30,7 +30,7 @@ current_user = 'backend-collab'  # Default user for tracking
 
 def get_utc_time():
     """Get current UTC time in YYYY-MM-DD HH:MM:SS format"""
-    return datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%SS')
+    return datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
 def log_request(user, endpoint):
     """Log request dengan user dan timestamp"""
